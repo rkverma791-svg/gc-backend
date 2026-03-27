@@ -1,99 +1,103 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+import time
+import hashlib
 import json
 import os
-import time
 
-# ---------------- INIT APP ----------------
 app = Flask(__name__)
 CORS(app)
 
+# ---------------- BLOCKCHAIN STORAGE ----------------
 CHAIN_FILE = "chain.json"
 
-
-# ---------------- HOME ----------------
-@app.route("/", methods=["GET"])
-def home():
-    return jsonify({"message": "GC Backend Running"})
-
-
-# ---------------- LOAD & SAVE ----------------
-def load_chain():
+# Create genesis block if not exists
+def create_genesis():
     if not os.path.exists(CHAIN_FILE):
-        return []
-    try:
-        with open(CHAIN_FILE, "r") as f:
-            return json.load(f)
-    except:
-        return []
+        genesis_block = [{
+            "index": 0,
+            "timestamp": time.time(),
+            "data": "Genesis Block",
+            "prev_hash": "0",
+            "hash": "0"
+        }]
+        with open(CHAIN_FILE, "w") as f:
+            json.dump(genesis_block, f, indent=4)
 
+# Load chain
+def load_chain():
+    with open(CHAIN_FILE, "r") as f:
+        return json.load(f)
 
+# Save chain
 def save_chain(chain):
     with open(CHAIN_FILE, "w") as f:
         json.dump(chain, f, indent=4)
 
+# Hash block
+def hash_block(block):
+    block_string = json.dumps(block, sort_keys=True).encode()
+    return hashlib.sha256(block_string).hexdigest()
 
-# ---------------- INIT GENESIS ----------------
-@app.route("/init", methods=["GET"])
-def init():
+# Add new block
+def add_block(data):
     chain = load_chain()
+    prev_block = chain[-1]
 
-    if not chain:
-        genesis = {
-            "index": 0,
-            "timestamp": time.time(),
-            "transactions": ["Genesis"]
-        }
-        chain.append(genesis)
-        save_chain(chain)
+    new_block = {
+        "index": len(chain),
+        "timestamp": time.time(),
+        "data": data,
+        "prev_hash": prev_block["hash"]
+    }
 
-    return jsonify(chain)
+    new_block["hash"] = hash_block(new_block)
+    chain.append(new_block)
+    save_chain(chain)
 
+    return new_block
 
-# ---------------- GET CHAIN ----------------
-@app.route("/chain", methods=["GET"])
-def get_chain():
-    return jsonify(load_chain())
+# Initialize
+create_genesis()
 
+# ---------------- ROUTES ----------------
 
-# ---------------- SEND TRANSACTION ----------------
-@app.route("/send", methods=["POST"])
+@app.route('/')
+def home():
+    return "✅ GC Backend Running"
+
+@app.route('/send', methods=['POST'])
 def send():
     try:
-        data = request.get_json()
+        data = request.json
 
-        if not data:
-            return jsonify({"error": "No data received"}), 400
-
-        sender = data.get("sender")
-        receiver = data.get("receiver")
+        receiver = data.get("to")
         amount = data.get("amount")
 
-        if not sender or not receiver or not amount:
-            return jsonify({"error": "Missing fields"}), 400
+        if not receiver or not amount:
+            return jsonify({"error": "Missing data"}), 400
 
-        chain = load_chain()
-
-        block = {
-            "index": len(chain),
-            "timestamp": time.time(),
-            "transactions": [
-                f"{sender} -> {receiver} : {amount}"
-            ]
+        tx_data = {
+            "to": receiver,
+            "amount": amount
         }
 
-        chain.append(block)
-        save_chain(chain)
+        block = add_block(tx_data)
 
         return jsonify({
-            "message": "Transaction successful",
+            "status": "success",
             "block": block
         })
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/chain')
+def get_chain():
+    chain = load_chain()
+    return jsonify(chain)
 
 # ---------------- RUN ----------------
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+
+if __name__ == '__main__':
+    app.run()
