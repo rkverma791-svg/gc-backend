@@ -3,19 +3,21 @@ from flask_cors import CORS
 import json
 import os
 import time
-@app.route("/", methods=["GET"])
-def home():
-    return jsonify({"message": "GC Backend Running"})
-app = Flask(__name__)
 
-# ✅ CORS FIX (VERY IMPORTANT)
+# ---------------- INIT APP ----------------
+app = Flask(__name__)
 CORS(app)
 
 CHAIN_FILE = "chain.json"
 
 
-# ---------------- LOAD & SAVE ----------------
+# ---------------- HOME ----------------
+@app.route("/", methods=["GET"])
+def home():
+    return jsonify({"message": "GC Backend Running"})
 
+
+# ---------------- LOAD & SAVE ----------------
 def load_chain():
     if not os.path.exists(CHAIN_FILE):
         return []
@@ -31,13 +33,7 @@ def save_chain(chain):
         json.dump(chain, f, indent=4)
 
 
-# ---------------- INIT ----------------
-
-@app.route("/", methods=["GET"])
-def home():
-    return jsonify({"message": "GC Backend Running"})
-
-
+# ---------------- INIT GENESIS ----------------
 @app.route("/init", methods=["GET"])
 def init():
     chain = load_chain()
@@ -55,15 +51,12 @@ def init():
 
 
 # ---------------- GET CHAIN ----------------
-
 @app.route("/chain", methods=["GET"])
 def get_chain():
-    chain = load_chain()
-    return jsonify(chain)
+    return jsonify(load_chain())
 
 
 # ---------------- SEND TRANSACTION ----------------
-
 @app.route("/send", methods=["POST"])
 def send():
     try:
@@ -102,6 +95,5 @@ def send():
 
 
 # ---------------- RUN ----------------
-
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
