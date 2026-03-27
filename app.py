@@ -3,7 +3,9 @@ from flask_cors import CORS
 import json
 import os
 import time
-
+@app.route("/", methods=["GET"])
+def home():
+    return jsonify({"message": "GC Backend Running"})
 app = Flask(__name__)
 
 # ✅ CORS FIX (VERY IMPORTANT)
