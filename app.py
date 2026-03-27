@@ -1,5 +1,7 @@
 from flask import Flask
 
+print("🔥 APP LOADED SUCCESSFULLY")
+
 app = Flask(__name__)
 
 @app.route('/')
@@ -9,6 +11,10 @@ def home():
 @app.route('/test')
 def test():
     return "TEST OK"
+
+@app.route('/ping')
+def ping():
+    return "SERVER RUNNING"
 
 # IMPORTANT FOR RENDER
 if __name__ == '__main__':
