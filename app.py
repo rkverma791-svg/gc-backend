@@ -7,7 +7,9 @@ import os
 
 app = Flask(__name__)
 CORS(app)
-
+@app.route('/')
+def home():
+    return "✅ GC Backend Running"
 # ---------------- BLOCKCHAIN STORAGE ----------------
 CHAIN_FILE = "chain.json"
 
