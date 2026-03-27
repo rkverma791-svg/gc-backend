@@ -1,82 +1,105 @@
 from flask import Flask, request, jsonify
-import json, time, os
+from flask_cors import CORS
+import json
+import os
+import time
 
 app = Flask(__name__)
+
+# ✅ CORS FIX (VERY IMPORTANT)
+CORS(app)
+
 CHAIN_FILE = "chain.json"
 
-# ---------------- LOAD ----------------
-def load_chain():
-    if os.path.exists(CHAIN_FILE):
-        with open(CHAIN_FILE) as f:
-            return json.load(f)
-    
-    # Auto genesis
-    chain = []
-    create_genesis(chain)
-    save_chain(chain)
-    return chain
 
-# ---------------- SAVE ----------------
+# ---------------- LOAD & SAVE ----------------
+
+def load_chain():
+    if not os.path.exists(CHAIN_FILE):
+        return []
+    try:
+        with open(CHAIN_FILE, "r") as f:
+            return json.load(f)
+    except:
+        return []
+
+
 def save_chain(chain):
     with open(CHAIN_FILE, "w") as f:
         json.dump(chain, f, indent=4)
 
-# ---------------- GENESIS ----------------
-def create_genesis(chain):
-    if len(chain) == 0:
-        chain.append({
+
+# ---------------- INIT ----------------
+
+@app.route("/", methods=["GET"])
+def home():
+    return jsonify({"message": "GC Backend Running"})
+
+
+@app.route("/init", methods=["GET"])
+def init():
+    chain = load_chain()
+
+    if not chain:
+        genesis = {
             "index": 0,
             "timestamp": time.time(),
             "transactions": ["Genesis"]
-        })
+        }
+        chain.append(genesis)
+        save_chain(chain)
 
-# ---------------- BALANCE ----------------
-def get_balance(chain, addr):
-    bal = 0
-    for block in chain:
-        for tx in block["transactions"]:
-            if isinstance(tx, dict):
-                if tx["sender"] == addr:
-                    bal -= tx["amount"]
-                if tx["receiver"] == addr:
-                    bal += tx["amount"]
-    return max(bal, 0)
+    return jsonify(chain)
 
-# ---------------- ROUTES ----------------
 
-@app.route("/chain")
-def chain():
-    return jsonify(load_chain())
+# ---------------- GET CHAIN ----------------
 
-@app.route("/balance/<addr>")
-def balance(addr):
+@app.route("/chain", methods=["GET"])
+def get_chain():
     chain = load_chain()
-    return jsonify({"balance": get_balance(chain, addr)})
+    return jsonify(chain)
+
+
+# ---------------- SEND TRANSACTION ----------------
 
 @app.route("/send", methods=["POST"])
 def send():
-    data = request.json
-    chain = load_chain()
+    try:
+        data = request.get_json()
 
-    tx = {
-        "sender": data["sender"],
-        "receiver": data["receiver"],
-        "amount": data["amount"]
-    }
+        if not data:
+            return jsonify({"error": "No data received"}), 400
 
-    if get_balance(chain, tx["sender"]) < tx["amount"]:
-        return jsonify({"status": "fail", "msg": "Insufficient balance"})
+        sender = data.get("sender")
+        receiver = data.get("receiver")
+        amount = data.get("amount")
 
-    chain.append({
-        "index": len(chain),
-        "timestamp": time.time(),
-        "transactions": [tx]
-    })
+        if not sender or not receiver or not amount:
+            return jsonify({"error": "Missing fields"}), 400
 
-    save_chain(chain)
+        chain = load_chain()
 
-    return jsonify({"status": "success", "msg": "Transaction Done"})
+        block = {
+            "index": len(chain),
+            "timestamp": time.time(),
+            "transactions": [
+                f"{sender} -> {receiver} : {amount}"
+            ]
+        }
+
+        chain.append(block)
+        save_chain(chain)
+
+        return jsonify({
+            "message": "Transaction successful",
+            "block": block
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 # ---------------- RUN ----------------
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
