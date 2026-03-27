@@ -4,16 +4,24 @@ import json, time, os
 app = Flask(__name__)
 CHAIN_FILE = "chain.json"
 
+# ---------------- LOAD ----------------
 def load_chain():
     if os.path.exists(CHAIN_FILE):
         with open(CHAIN_FILE) as f:
             return json.load(f)
-    return []
+    
+    # Auto genesis
+    chain = []
+    create_genesis(chain)
+    save_chain(chain)
+    return chain
 
+# ---------------- SAVE ----------------
 def save_chain(chain):
     with open(CHAIN_FILE, "w") as f:
-        json.dump(chain, f)
+        json.dump(chain, f, indent=4)
 
+# ---------------- GENESIS ----------------
 def create_genesis(chain):
     if len(chain) == 0:
         chain.append({
@@ -22,6 +30,7 @@ def create_genesis(chain):
             "transactions": ["Genesis"]
         })
 
+# ---------------- BALANCE ----------------
 def get_balance(chain, addr):
     bal = 0
     for block in chain:
@@ -32,6 +41,8 @@ def get_balance(chain, addr):
                 if tx["receiver"] == addr:
                     bal += tx["amount"]
     return max(bal, 0)
+
+# ---------------- ROUTES ----------------
 
 @app.route("/chain")
 def chain():
@@ -46,7 +57,6 @@ def balance(addr):
 def send():
     data = request.json
     chain = load_chain()
-    create_genesis(chain)
 
     tx = {
         "sender": data["sender"],
@@ -55,7 +65,7 @@ def send():
     }
 
     if get_balance(chain, tx["sender"]) < tx["amount"]:
-        return jsonify({"status": "fail"})
+        return jsonify({"status": "fail", "msg": "Insufficient balance"})
 
     chain.append({
         "index": len(chain),
@@ -64,6 +74,9 @@ def send():
     })
 
     save_chain(chain)
-    return jsonify({"status": "success"})
 
-app.run(host="0.0.0.0", port=5000)
+    return jsonify({"status": "success", "msg": "Transaction Done"})
+
+# ---------------- RUN ----------------
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)
